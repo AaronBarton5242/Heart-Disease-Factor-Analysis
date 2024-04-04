@@ -1,0 +1,1 @@
+This code uses multivariate statistical methods to explore the relationships between the variables for people with differing severity levels of heart disease. Graphics were created to explore associations between significant variables during the analysis. Additionally, a logistic model was fit to predict whether a patient has heart disease or not.
