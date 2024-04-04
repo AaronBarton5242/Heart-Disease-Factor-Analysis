@@ -1,0 +1,223 @@
+---
+title: "Heart Disease Risk Factor Analysis"
+author: "Aaron Barton"
+date: "November 3, 2023"
+output:
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+**Introduction:**
+
+|             Heart disease is the leading cause of death in the United States. There are various warning signs that one can look at to determine if they are at risk for developing this disease. In the study, 13 factors were considered: age, sex, chest pain type, resting blood pressure, serum cholesterol, fasting blood sugar, resting electrocardiogram result, maximum heart rate, exercise-induced angina, ST depression induced by exercise, slope of peak exercise of ST segment, number of major vessels, and thalassemia. There were 303 patients in this study but six were dropped due to incomplete data. Relationships were explored between each variable and were grouped according to their impact on the diagnosis and severity of heart disease. Additionally, these potential risk factors were used to predict if a new individual was at risk of developing heart disease. This tool should not be used to diagnose people but will give people insight into their heart disease risk and may lead individuals to seek out treatments.
+
+**Data Summary:**
+
+1. age: age in years 
+2. sex: sex (1=male, 0=female) 
+3. cp: chest pain type (1: typical angina; 2: atypical angina; 3: non-anginal pain; 4: asymptomatic)
+4. trestbps: resting blood pressure (in mm Hg on admission to the hospital)
+5. chol: serum cholesterol in mg/dl
+6. fbs: fasting blood sugar > 120 mg/dl (1=true, 0=false)
+7. restecg: resting electrocardiographic results (0: normal; 1: having ST-T wave abnormality (T wave inversions and/or ST elevation or depression of > 0.05 mV); 2: showing probable or definite left ventricular hypertrophy by Estes' criteria) 
+8. thalach: maximum heart rate achieved
+9. exang: exercise induced angina (1=yes, 0=no)
+10. oldpeak: ST depression induced by exercise relative to rest 
+11. slope: the slope of the peak exercise ST segment (1. upsloping; 2. flat; 3. downsloping)
+12. ca: number of major vessels (0-3) colored by flourosopy 
+13. thal (3: normal; 6: fixed defect; 7: reversible defect)
+14. num: diagnosis of heart disease (angiographic disease status) (0: no heart disease; 1-4: increasing levels of heart disease severity)
+```{r, message = FALSE, echo = FALSE}
+library(tidyverse)
+library(GGally)
+library(MASS)
+library(caTools)
+library(MVN)
+library(knitr)
+```
+
+## 1. Are there notable associations/relationships between some of the variables? Are there any meaningful groups of variables that exhibit these associations? If so, describe them.
+
+|               This data set included a combination of quantitative and categorical variables. These variables were tested and analyzed to determine any underlying relationships. A correlation matrix was created to display the associations between the variables. However, the categorical variables were treated as numeric to display broad associations. For numeric variables, the maximum heart rate was the only factor that had a negative relationship with the rest of the fields. Additionally, there were two  uncorrelated variables: cholesterol level and fasting blood sugar. The rest of the variables had somewhat weak positive relationships with each other. To discover relationships between numeric variables, multiple two-sample T-tests were done between heart disease and no heart disease. However, the univariate Anderson-Darling normality tests fail, so these results should be taken lightly. The variables age, old peak, and resting blood pressure have a positive relationship with heart disease while maximum heart rate has a negative association. However, the cholesterol levels did not have an effect. To compare categorical variables, they were tested using multiple Chi-square of independence comparing patients with and without heart disease. Each categorical variable was significantly related to heart disease besides the fasting blood sugar levels. Therefore, most variables in the study are associated with heart disease.
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#data frame set up and basic data summaries
+
+health.df = read.csv("processed.heartdisease.txt")
+health.df = mutate_all(health.df, function(x) as.numeric(as.character(x))) # converts data frame to numeric
+health.df = health.df[-c(88,167,193,267,288,303),] # drops incomplete data
+
+round(cor(health.df),2) # correlation matrix
+
+# seperates each severity level
+health.df.0 = filter(health.df, num == 0)
+health.df.1 = filter(health.df, num == 1)
+health.df.2 = filter(health.df, num == 2)
+health.df.3 = filter(health.df, num == 3)
+health.df.4 = filter(health.df, num == 4)
+
+summary(health.df)
+
+# visualize differences among severity levels
+print("No Health Disease")
+colMeans(health.df.0)
+print("Lvl 1 Health Disease")
+colMeans(health.df.1)
+print("Lvl 2 Health Disease")
+colMeans(health.df.2)
+print("Lvl 3 Health Disease")
+colMeans(health.df.3)
+print("Lvl 4 Health Disease")
+colMeans(health.df.4)
+
+# makes a 0-1 variable as the response, without factoring the categories
+health.df.logistic.noFactors = health.df
+health.df.logistic.noFactors$num[health.df.logistic.noFactors$num >= 1 ] <- 1
+
+# makes a 0-1 variable with factoring variables
+health.df.logistic = health.df
+health.df.logistic$num[health.df.logistic$num >= 1 ] <- 1
+
+# factors categorical variables
+Factors<-c('sex','cp','fbs','restecg','exang','slope','ca','thal','num')
+health.df[Factors]<-lapply(health.df[Factors],factor)
+
+Factors<-c('sex','cp','fbs','restecg','exang','slope','ca','thal','num')
+health.df.logistic[Factors]<-lapply(health.df.logistic[Factors],factor)
+
+# makes seperate data frame with only people with or without heart disease
+health.df.noDis = filter(health.df.logistic, num == 0)
+health.df.Dis = filter(health.df.logistic, num == 1)
+
+# creates a data frame with only numeric variables
+health.df.num = dplyr::select(health.df, c(-sex,-cp,-fbs,-restecg,-exang,-slope,-ca,-thal,-num))
+```
+
+```{r message=FALSE, warning = FALSE, include = FALSE}
+# normality test
+mvn(health.df.num, mvnTest="hz") ## fails
+
+# testing numeric variables against heart disease vs no heart disease
+t.test(health.df.noDis$oldpeak, health.df.Dis$oldpeak) 
+t.test(health.df.noDis$age, health.df.Dis$age)
+t.test(health.df.noDis$trestbps, health.df.Dis$trestbps) 
+t.test(health.df.noDis$chol, health.df.Dis$chol)
+t.test(health.df.noDis$thalach, health.df.Dis$thalach)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+#testing categorical variables against heart disease and no heart disease
+chisq.test(health.df.logistic$sex, health.df.logistic$num)
+chisq.test(health.df.logistic$cp, health.df.logistic$num)
+chisq.test(health.df.logistic$fbs, health.df.logistic$num)
+chisq.test(health.df.logistic$restecg, health.df.logistic$num) 
+chisq.test(health.df.logistic$exang, health.df.logistic$num)
+chisq.test(health.df.logistic$slope, health.df.logistic$num)
+chisq.test(health.df.logistic$ca, health.df.logistic$num)
+chisq.test(health.df.logistic$thal, health.df.logistic$num)
+```
+
+
+## 2. Is there a way to graphically represent the raw data for the 303 patients and draw conclusions about the data set from such a graph?
+  
+|               To visualize the data, the next step was to analyze groups of factor variables. These were decided by drawing conclusions from the correlation matrix and the statistical tests. The first relationship was looking at the relationship between age, max heart rate, and heart disease diagnosis:
+```{r,echo = FALSE}
+ggplot(data = health.df.logistic.noFactors, aes(x = age, y = thalach)) +  geom_point(data = health.df.logistic.noFactors, aes(x = age, y = thalach, color = factor(num))) + labs(x = "Age", y = "Max Heart Rate Achieved", title = "Age vs Max Heart Rate") + theme(plot.title = element_text(hjust = 0.5)) + geom_smooth(method = "lm", se = F, formula = y~x, linetype = "solid") + scale_color_manual(breaks = c("0", "1"), values=c("green","red")) + labs(color = "Heart Disease")
+```
+The individuals without heart disease are generally above the best-fit line. This grouping displays that lower-age individuals with higher maximum heart rates have less chance of having heart disease. The next grouping looked at the associations with old peak, slope, and heart disease severity:
+```{r, echo = FALSE}
+ggplot(data = health.df, aes(x = num, y = oldpeak)) +  geom_boxplot(data = health.df, aes(x = num, y = oldpeak, group = num)) + facet_grid(~slope, labeller = label_both) + labs(x = "Heart Disease Severity", y = "Old Peak", title = "Heart Disease Severity vs Old Peak by Slope") + theme(plot.title = element_text(hjust = 0.5))
+```
+This shows a clear positive relationship between all three variables. The higher the old peak and/or slope, the greater the heart disease severity.
+
+## 3. What are the basic underlying groups that the individuals form? Can you plot the data in a small number of dimensions, showing the group separation of the patients?
+```{r include=FALSE}
+alldist.health.df = dist(health.df, method = "canberra") #creates a distance matrix
+health.iso = isoMDS(alldist.health.df, k = 2) #nonmetric MDS
+```
+|               To see if the individual's heart disease severity level form underlying groups, a nonmetric multidimensional scaling (MDS) procedure was done. The Canberra method was employed to create a distance matrix that handles both quantitative and categorical variables. The nonmetric MDS points were plotted on a graph to visualize the severity level groups:
+```{r echo=FALSE}
+#plots nonmetric MDS points on a graph
+plot(health.iso$points, type = "n",xlab="Coordinate 1", ylab="Coordinate 2", ylim=c(-5, 5), xlim=c(-5,5))
+text(health.iso$points, labels = health.df$num)
+title("Nonmetric MDS", adj = 0)
+abline(v=0)
+par(xpd=TRUE)
+legend("topright", inset=c(0,-.25), legend=c("0: No Disease","1-4: Increasing Severity"))
+```
+When displaying combinations of these variables, the patients without heart disease appear on the right side, showing they have similar characteristics. Additionally, the severity levels appear fairly evenly distributed on the left side, displaying that the level of severity does not have distinct characteristics. As such, most of the analysis here on was done by treating the heart disease severity as one group. 
+
+## 4. Are there interesting differences in any of the recorded fields with respect to heart disease diagnosis? 
+```{r include=FALSE}
+# compares heart disease vs no heart disease in gender
+chisq.sex = chisq.test(health.df.logistic$sex, health.df.logistic$num)
+table(health.df.logistic$sex, health.df.logistic$num)
+round(chisq.sex$expected,2) 
+# compares heart disease severity levels in gender
+chisq.sex2 = chisq.test(health.df$sex, health.df$num)
+table(health.df$sex, health.df$num)
+round(chisq.sex2$expected,2) 
+
+# compares heart disease vs no heart disease in chest pain
+chisq.cp = chisq.test(health.df.logistic$cp, health.df.logistic$num)
+table(health.df.logistic$cp, health.df.logistic$num)
+round(chisq.cp$expected,2)
+# compares heart disease severity levels in chest pain
+chisq.cp2 = chisq.test(health.df$cp, health.df$num)
+table(health.df$cp, health.df$num)
+round(chisq.cp2$expected,2) 
+```
+|               When comparing the observed versus expected values in the Chi-square tests, there were two interesting differences. The first is having asymptomatic chest pain rather than any level of angina increases the probability of both heart disease diagnosis and severity. Additionally, being a male increases the risk of heart disease and severity level significantly compared to females.
+
+## 5. If the researchers were to investigate a new patient observation that had known measurements for the 13 explanatory variables, could we determine a rule for predicting that patient's heart disease status (no heart disease vs presence of heart disease)? How accurate could you expect such a rule to be?
+
+|               A logistic model using all 13 variables was created to predict the probability of heart disease. This model may have some accuracy issues as the numeric data has normality issues. Also, the logistic model was used over linear discriminant analysis due to the inclusion of categorical variables.
+```{r include=FALSE}
+health.logistic.model = glm(num ~., data = health.df.logistic, family = "binomial")
+summary(health.logistic.model)
+```
+## 6. In particular, we have a new patient who is a 60 year old female. Her symptoms are non-anginal pain, a resting blood pressure of 102 mm Hg, a cholesterol measurement of 318 mg/dl, low fasting blood sugar, normal resting electrocardiographic results, a maximum heart rate of 160 beats/minute, no exercise-induced angina, no ST depression induced by exercise relative to rest, upsloping peak ST segment, only 1 colored major vessel, and normal thal diagnosis. Would you predict this patient to have heart disease? How confident are you in the classification?
+
+|               The model predicted the patient does not have heart disease. In particular, there was a 1.9 percent chance she had heart disease. To verify the accuracy, 75 percent of the data was put into a training data set, while 25 percent was placed in the testing data frame. A logistic model was created for the training data to compare to the testing data to determine if the predictions were accurate. A threshold of over 50 percent was used to determine if a prediction was incorrectly classified. The confusion matrix below shows these classification rates. The model correctly predicted 64 of 74 patients in the testing data which is an 86.49 percent accuracy rate.
+
+```{r include=FALSE}
+new_patient <- rbind( c(60,0,3,102,318,0,0,160,0,0,1,1,3) )
+dimnames(new_patient) <- list(NULL,c('age','sex', 'cp', 'trestbps','chol','fbs','restecg','thalach','exang','oldpeak','slope','ca','thal'))
+new_patient <- data.frame(new_patient)
+
+Factors2<-c('sex','cp','fbs','restecg','exang','slope','ca','thal')
+new_patient[Factors2]<-lapply(new_patient[Factors2],factor)
+
+(pred = health.logistic.model %>% predict(new_patient, type = "response"))
+ifelse(pred>.5, "Health Disease", "No Health Disease")
+
+set.seed(52)
+sample = sample.split(health.df.logistic$num, SplitRatio = 0.75)
+health.training = subset(health.df.logistic, sample == TRUE)
+health.testing = subset(health.df.logistic, sample == FALSE)
+
+health.logistic.training = glm(num ~., data = health.training, family = "binomial")
+
+mis.rate = predict(health.logistic.training, newdata=health.testing, type="response")
+(conf.matrix = table(health.testing$num, mis.rate >= 0.5))
+(accuracy = sum(diag(conf.matrix)) / sum(conf.matrix))
+```
+
+```{r echo=FALSE}
+include_graphics("Confusion-Matrix.png")
+```
+
+## 8. What are any other potentially interesting aspects of the data set?
+
+|               One interesting aspect is that the categorical variables can be treated as numeric for some basic analysis purposes. It works because the higher the category typically has higher rates of heart disease severity. The main caveat is the thalassmia variable uses three, six, and seven as the range, so the scale is not proportional to the others. There is also issues of failing normality and large skew of these fake numeric variables, but it gives a broad understanding of the data (i.e. correlation matrix).
+
+**Conclusion:**
+
+|               Heart disease can be fairly accurately predicted using combinations of the risk factors in the study. Individuals with heart disease seem to have similar characteristics to each other, regardless of how severe their disease is. Generally, having higher levels of each risk factor typically increases the probability an individual has heart disease. One can look into their data for these factors and determine if they are at risk or have heart disease. This is essential to help doctors diagnose and treat people with heart disease.
+
+
+
+
+
